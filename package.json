@@ -1,0 +1,24 @@
+{
+	"name": "websockets-project",
+	"version": "1.0.0",
+	"description": "Sports app to learn and demonstrate websocket skills",
+	"main": "server.js",
+	"scripts": {
+		"dev": "node --watch server.js"
+	},
+	"repository": {
+		"type": "git",
+		"url": "git+https://github.com/SrikarGopaluni/websockets-project.git"
+	},
+	"keywords": [],
+	"author": "",
+	"license": "ISC",
+	"type": "module",
+	"bugs": {
+		"url": "https://github.com/SrikarGopaluni/websockets-project/issues"
+	},
+	"homepage": "https://github.com/SrikarGopaluni/websockets-project#readme",
+	"dependencies": {
+		"ws": "^8.22.1"
+	}
+}

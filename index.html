@@ -1,0 +1,255 @@
+<!doctype html>
+<html lang="en">
+	<head>
+		<meta charset="UTF-8" />
+		<meta name="viewport" content="width=device-width, initial-scale=1" />
+		<title>WebSocket Tester</title>
+		<style>
+			:root {
+				--bg: #f4f4f5;
+				--fg: #18181b;
+				--muted: #71717a;
+				--border: #d4d4d8;
+				--accent: #2563eb;
+				--ok: #16a34a;
+				--bad: #dc2626;
+			}
+			* {
+				box-sizing: border-box;
+			}
+			body {
+				margin: 0;
+				padding: 24px;
+				background: var(--bg);
+				color: var(--fg);
+				font-family:
+					system-ui,
+					-apple-system,
+					"Segoe UI",
+					sans-serif;
+			}
+			.wrap {
+				max-width: 760px;
+				margin: 0 auto;
+			}
+			h1 {
+				font-size: 20px;
+				margin: 0 0 16px;
+			}
+			.bar {
+				display: flex;
+				gap: 8px;
+				margin-bottom: 12px;
+				align-items: center;
+			}
+			input[type="text"] {
+				flex: 1;
+				padding: 10px 12px;
+				border: 1px solid var(--border);
+				border-radius: 6px;
+				font-size: 14px;
+				background: #fff;
+			}
+			input[type="text"]:focus-visible,
+			button:focus-visible {
+				outline: 2px solid var(--accent);
+				outline-offset: 1px;
+			}
+			button {
+				padding: 10px 16px;
+				border: 0;
+				border-radius: 6px;
+				background: var(--accent);
+				color: #fff;
+				font-size: 14px;
+				cursor: pointer;
+			}
+			button.secondary {
+				background: #fff;
+				color: var(--fg);
+				border: 1px solid var(--border);
+			}
+			button:disabled {
+				opacity: 0.5;
+				cursor: not-allowed;
+			}
+			.status {
+				font-size: 13px;
+				color: var(--muted);
+				display: flex;
+				align-items: center;
+				gap: 6px;
+			}
+			.dot {
+				width: 9px;
+				height: 9px;
+				border-radius: 50%;
+				background: var(--bad);
+			}
+			.dot.on {
+				background: var(--ok);
+			}
+			#logs {
+				height: 360px;
+				overflow-y: auto;
+				background: #000;
+				color: #e4e4e7;
+				border-radius: 8px;
+				padding: 12px;
+				font-family: ui-monospace, "SFMono-Regular", Menlo, Consolas, monospace;
+				font-size: 13px;
+				line-height: 1.5;
+				margin-bottom: 12px;
+			}
+			.line {
+				white-space: pre-wrap;
+				word-break: break-word;
+			}
+			.time {
+				color: #71717a;
+				margin-right: 8px;
+			}
+			.sys {
+				color: #fbbf24;
+			}
+			.out {
+				color: #60a5fa;
+			}
+			.in {
+				color: #4ade80;
+			}
+			.err {
+				color: #f87171;
+			}
+		</style>
+	</head>
+	<body>
+		<div class="wrap">
+			<h1>WebSocket tester</h1>
+
+			<div class="bar">
+				<input
+					id="url"
+					type="text"
+					value="ws://localhost:8080"
+					aria-label="WebSocket URL"
+				/>
+				<button id="connectBtn">Connect</button>
+				<button id="disconnectBtn" class="secondary" disabled>
+					Disconnect
+				</button>
+			</div>
+
+			<div class="status" style="margin-bottom: 12px">
+				<span id="dot" class="dot"></span
+				><span id="statusText">Disconnected</span>
+			</div>
+
+			<div id="logs" role="log" aria-live="polite"></div>
+
+			<div class="bar">
+				<input
+					id="msg"
+					type="text"
+					placeholder="Type a message and press Enter"
+					disabled
+					aria-label="Message"
+				/>
+				<button id="sendBtn" disabled>Send</button>
+				<button id="clearBtn" class="secondary">Clear</button>
+			</div>
+		</div>
+
+		<script>
+			const $ = (id) => document.getElementById(id);
+			const logsEl = $("logs"),
+				urlEl = $("url"),
+				msgEl = $("msg");
+			const connectBtn = $("connectBtn"),
+				disconnectBtn = $("disconnectBtn");
+			const sendBtn = $("sendBtn"),
+				clearBtn = $("clearBtn");
+			const dot = $("dot"),
+				statusText = $("statusText");
+
+			let socket = null;
+
+			function log(text, cls = "sys") {
+				const line = document.createElement("div");
+				line.className = "line";
+				const time = document.createElement("span");
+				time.className = "time";
+				time.textContent = new Date().toLocaleTimeString();
+				const body = document.createElement("span");
+				body.className = cls;
+				body.textContent = text;
+				line.append(time, body);
+				logsEl.appendChild(line);
+				logsEl.scrollTop = logsEl.scrollHeight;
+			}
+
+			function setConnected(connected) {
+				dot.classList.toggle("on", connected);
+				statusText.textContent = connected ? "Connected" : "Disconnected";
+				connectBtn.disabled = connected;
+				disconnectBtn.disabled = !connected;
+				msgEl.disabled = !connected;
+				sendBtn.disabled = !connected;
+				urlEl.disabled = connected;
+				if (connected) msgEl.focus();
+			}
+
+			function connect() {
+				const url = urlEl.value.trim();
+				if (!url) return;
+				log(`Connecting to ${url}...`);
+				try {
+					socket = new WebSocket(url);
+				} catch (e) {
+					log(`Invalid URL: ${e.message}`, "err");
+					return;
+				}
+
+				socket.addEventListener("open", () => {
+					log("Connection opened", "sys");
+					setConnected(true);
+				});
+				socket.addEventListener("message", (e) => log(`← ${e.data}`, "in"));
+				socket.addEventListener("error", () =>
+					log("Socket error (is the server running?)", "err"),
+				);
+				socket.addEventListener("close", (e) => {
+					log(
+						`Connection closed (code ${e.code}${e.reason ? ", " + e.reason : ""})`,
+						"sys",
+					);
+					setConnected(false);
+					socket = null;
+				});
+			}
+
+			function send() {
+				const text = msgEl.value.trim();
+				if (!text || !socket || socket.readyState !== WebSocket.OPEN) return;
+				socket.send(text);
+				log(`→ ${text}`, "out");
+				msgEl.value = "";
+				msgEl.focus();
+			}
+
+			connectBtn.addEventListener("click", connect);
+			disconnectBtn.addEventListener(
+				"click",
+				() => socket && socket.close(1000, "client closed"),
+			);
+			sendBtn.addEventListener("click", send);
+			clearBtn.addEventListener("click", () => (logsEl.innerHTML = ""));
+			msgEl.addEventListener("keydown", (e) => {
+				if (e.key === "Enter") send();
+			});
+			urlEl.addEventListener("keydown", (e) => {
+				if (e.key === "Enter") connect();
+			});
+		</script>
+	</body>
+</html>
